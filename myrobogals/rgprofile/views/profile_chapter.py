@@ -8,6 +8,7 @@ import operator
 from datetime import time, date
 from time import time
 
+from django import forms
 from django.contrib import messages
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.decorators import login_required
@@ -75,6 +76,106 @@ def listuserlists(request, chapterurl):
 @login_required
 def adduserlist(request, chapterurl):
     return edituserlist(request, chapterurl, 0)
+
+
+@login_required
+def editstatus(request, chapterurl):
+	c = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
+	memberstatustypes = MemberStatusType.objects.all()
+	if request.user.is_superuser or (request.user.is_staff and (c == request.user.chapter)):
+		users = []
+		if request.method == 'POST':
+			ulform = EditStatusForm(request.POST, user=request.user)
+			if ulform.is_valid():
+				data = ulform.cleaned_data
+				status = data['status']
+				users = data['users'] #l:queryset
+				users_already = ""
+				users_changed = ""
+
+				for user in users:
+					u = User.objects.get(username__exact = user.username)
+					old_status = u.memberstatus_set.get(status_date_end__isnull=True)
+					if old_status.statusType == MemberStatusType.objects.get(pk=int(status)):
+						if(users_already):
+							users_already = users_already + ", " + u.username
+						else:
+							users_already = u.username
+					else:
+						if user.membertype().description != 'Inactive':
+							old_status.status_date_end = date.today()
+							old_status.save()
+						new_status=MemberStatus()
+						new_status.user = u
+						new_status.statusType = MemberStatusType.objects.get(pk=int(status))
+						new_status.status_date_start = date.today()
+						new_status.save()
+						if(users_changed):
+							users_changed = users_changed + ", " + u.username
+						else:
+							users_changed = u.username
+
+				if(users_already):
+					messages.success(request, message=unicode(_("%(usernames)s are already marked as %(type)s") % {'usernames': users_already, 'type': MemberStatusType.objects.get(pk=int(status)).description}))
+
+				if(users_changed):
+					messages.success(request, message=unicode(_("%(usernames)s has/have been marked as %(type)s") % {'usernames': users_changed, 'type': new_status.statusType.description}))
+
+				return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/')
+			else:
+				return render_to_response('edit_user_status.html', {'ulform': ulform, 'chapter': c, 'memberstatustypes': memberstatustypes}, context_instance=RequestContext(request))
+		else:
+			ulform = EditStatusForm(None, user=request.user)
+			return render_to_response('edit_user_status.html', {'ulform': ulform, 'chapter': c, 'memberstatustypes': memberstatustypes}, context_instance=RequestContext(request))
+
+#Form for collecting information to invite a user
+class InviteForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+        super(InviteForm, self).__init__(*args, **kwargs)
+
+    email = forms.EmailField(label=_('Email'), max_length=64)
+    staff_access = forms.BooleanField(label=('Staff access'), required=False)
+    superuser_access = forms.BooleanField(label=('Superuser access'), required=False)
+
+#Page to send invite to join chapter to an email
+@login_required
+def inviteuser(request, chapterurl):
+    #Variables determine whether staff and superuser fields are shown
+    staff_field = False
+    superuser_field = False
+
+    #If web page is returning an action from submit button
+    if request.method == 'POST':
+        inviteform = InviteForm(request.POST)
+        if inviteform.is_valid():
+            data = inviteform.cleaned_data
+            return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/invite/sent/')
+
+    #If request is not an action from the submit button
+    else:
+        chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
+        user = request.user
+        emlf = forms.EmailField(label=_('Email'), max_length=64)
+        inviteform=InviteForm({'email': emlf})
+
+        #if staff or superuser, show staff field
+        if user.is_staff or user.is_superuser:
+            staff_field = True
+        #if user is superuser, show superuser field
+        if user.is_superuser:
+            superuser_field = True
+
+    return render_to_response('invite_user.html',
+                                      {'chapter' : chapter,
+                                       'inviteform' : inviteform,
+                                       'staff_field' : staff_field,
+                                       'superuser_field' : superuser_field},
+                                      context_instance=RequestContext(request))
+
+#Page displaying "invite sent" message
+def invitesent(request, chapterurl):
+    chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
+    return render_to_response('invite_sent.html', {'chapter': chapter}, context_instance=RequestContext(request))
 
 
 @login_required
