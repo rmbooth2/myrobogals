@@ -12,6 +12,7 @@ from django.shortcuts import render_to_response, get_object_or_404
 from django.template import RequestContext
 from django.utils.timezone import now
 from django.utils.translation import ugettext_lazy as _
+from django.core.exceptions import MultipleObjectsReturned
 
 from myrobogals.rgchapter.models import Chapter
 from myrobogals.rgmessages.models import EmailMessage, SMSMessage, SMSRecipient
@@ -21,22 +22,48 @@ from myrobogals.rgprofile.forms import FormPartOne, FormPartTwo, FormPartThree, 
 from myrobogals.rgprofile.forms import WelcomeEmailFormTwo
 from myrobogals.rgprofile.functions import genandsendpw, RgGenAndSendPwException
 from myrobogals.rgprofile.models import Position
-from myrobogals.rgprofile.models import User, MemberStatus
+from myrobogals.rgprofile.models import User, MemberStatus, ChapterInvite
 from myrobogals.rgprofile.views.profile_login import openconductfile
 from myrobogals.rgteaching.models import EventAttendee
 
 
-def joinchapter(request, chapterurl):
+def joinchapter(request, chapterurl, invite=None, override_closed=False):
     chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
-    if chapter.is_joinable:
+    if chapter.is_joinable or override_closed:
         if request.user.is_authenticated():
             return render_to_response('join_already_logged_in.html', {}, context_instance=RequestContext(request))
         else:
-            return newuser(request, chapter)
+            return newuser(request, chapter, invite, override_closed)
     else:
         join_page = chapter.join_page.format(chapter=chapter)
         return render_to_response('joininfo.html', {'chapter': chapter, 'join_page': join_page},
                                   context_instance=RequestContext(request))
+
+
+def joinfrominvite(request, chapterurl, token):
+    try:
+        invite=ChapterInvite.objects.get(TOKEN=token)
+    #If no form is found with that invite, redirect them to invalid invite page
+    except ChapterInvite.DoesNotExist:
+        return render_to_response('invalid_invite.html', {}, context_instance=RequestContext(request))
+    #If more than one form with the same token exists (this should not happen), send them to the error page.
+    #A new invite will need to be generated.
+    except MultipleObjectsReturned:
+        return render_to_response('invalid_invite.html', {}, context_instance=RequestContext(request))
+
+    print("email is: " + invite.email)
+    print("staff is: " + invite.staff_access)
+    print("superuser is: " + str(invite.superuser_access))
+    print("expiry is: " + str(invite.EXPIRY_DATETIME))
+    print("token is: " + str(invite.TOKEN))
+    print("chapterurl is: " + str(invite.CHAPTER_URL))
+
+    # TODO figue out why the value of
+    # #If now is after expiry date, send to error page
+    # if invite.EXPIRY_DATETIME < datetime.now():
+    #     return render_to_response('invalid_invite.html', {}, context_instance=RequestContext(request))
+
+    return newuser(request, chapter=get_object_or_404(Chapter, myrobogals_url__exact=chapterurl), token=token, invite=invite, override_closed=True)
 
 
 @login_required
@@ -49,10 +76,11 @@ def redirtoeditself(request):
     return HttpResponseRedirect("/profile/" + request.user.username + "/edit/")
 
 
-def newuser(request, chapter):
+def newuser(request, chapter, token=None, invite=None, override_closed=False):
     pwerr = ''
     usererr = ''
     carderr = ''
+    inverr = ''
     err = []
 
     signup_form = FormPartOne(request.POST or None, chapter=chapter, user_id='')
@@ -95,57 +123,65 @@ def newuser(request, chapter):
                         if len(request.POST['password1']) < 5:
                             pwerr = _('Your password must be at least 5 characters long')
                         else:
-                            # Creates, saves and returns a User object
-                            u = User.objects.create_user(new_username, '', request.POST['password1'])
-                            u.chapter = chapter
-                            mt = MemberStatus(user_id=u.pk, statusType_id=1)
-                            mt.save()
-                            u.is_active = True
-                            u.is_staff = False
-                            u.is_superuser = False
-                            u.code_of_conduct = True if coc_form_text is not None else False
+                            # if (invite is not None) and not invite.email == data['email']:
+                            #     inverr = _('Please use the email address that your invite was sent to.')
+                            # else:
+                                # Creates, saves and returns a User object
+                                u = User.objects.create_user(new_username, '', request.POST['password1'])
+                                u.chapter = chapter
+                                mt = MemberStatus(user_id=u.pk, statusType_id=1)
+                                mt.save()
+                                u.is_active = True
+                                if invite is not None:
+                                    u.is_staff = invite.staff_access
+                                    u.is_superuser=invite.superuser_access
+                                else:
+                                    u.is_staff = False
+                                    u.is_superuser = False
+                                u.code_of_conduct = True if coc_form_text is not None else False
 
-                            u.first_name = data['first_name']
-                            u.last_name = data['last_name']
-                            u.email = data['email']
-                            u.alt_email = data['alt_email']
-                            u.mobile = data['mobile']
-                            u.mobile_verified = False
-                            u.gender = data['gender']
+                                u.first_name = data['first_name']
+                                u.last_name = data['last_name']
+                                u.email = data['email']
+                                u.alt_email = data['alt_email']
+                                u.mobile = data['mobile']
+                                u.mobile_verified = False
+                                u.gender = data['gender']
 
-                            if 'student_number' in data:
-                                u.student_number = data['student_number']
+                                if 'student_number' in data:
+                                    u.student_number = data['student_number']
 
-                            if 'union_member' in data:
-                                u.union_member = data['union_member']
+                                if 'union_member' in data:
+                                    u.union_member = data['union_member']
 
-                            if 'tshirt' in data:
-                                u.tshirt = data['tshirt']
+                                if 'tshirt' in data:
+                                    u.tshirt = data['tshirt']
 
-                            # If chapter has enabled police check (required check is performed in clean() method
-                            if 'police_check_number' in data and 'police_check_expiration' in data:
-                                u.police_check_number = data['police_check_number']
-                                u.police_check_expiration = data['police_check_expiration']
-                                notify_chapter(chapter, u)
+                                # If chapter has enabled police check (required check is performed in clean() method
+                                if 'police_check_number' in data and 'police_check_expiration' in data:
+                                    u.police_check_number = data['police_check_number']
+                                    u.police_check_expiration = data['police_check_expiration']
+                                    notify_chapter(chapter, u)
 
-                            u.save()
+                                u.save()
 
-                            if chapter.welcome_email_enable:
-                                welcome_email(request, chapter, u)
+                                if chapter.welcome_email_enable:
+                                    welcome_email(request, chapter, u)
 
-                            return HttpResponseRedirect("/welcome/" + chapter.myrobogals_url + "/")
+                                return HttpResponseRedirect("/welcome/" + chapter.myrobogals_url + "/")
+
                     else:
                         pwerr = _('The password and repeated password did not match. Please try again')
                 else:
                     usererr = _('That username is already taken')
 
             # Compile all the errors into a list
-            err = [usererr, pwerr, carderr]
+            err = [usererr, pwerr, carderr, inverr]
 
     if coc_form_text is not None:
-        return render_to_response('sign_up.html', {'signup_form': signup_form, 'conduct_form': coc_form, 'chapter': chapter, 'err': err}, context_instance=RequestContext(request))
+        return render_to_response('sign_up.html', {'signup_form': signup_form, 'conduct_form': coc_form, 'chapter': chapter, 'err': err, 'override_closed' : override_closed, 'token' : 68929328130066836618088225556443155376650624524345230279509731477781125613946}, context_instance=RequestContext(request))
     else:
-        return render_to_response('sign_up.html', {'signup_form': signup_form, 'chapter': chapter, 'err': err}, context_instance=RequestContext(request))
+        return render_to_response('sign_up.html', {'signup_form': signup_form, 'chapter': chapter, 'err': err, 'override_closed' : override_closed, 'token' : 68929328130066836618088225556443155376650624524345230279509731477781125613946}, context_instance=RequestContext(request))
 
 
 def conduct_help(request):
@@ -317,7 +353,7 @@ def edituser(request, username, chapter=None):
                     # Form 4 data
                     data = formpart4.cleaned_data
                     u.email_reminder_optin = data['email_reminder_optin']
-                    u.email_chapter_optin = data['email_chapter_optin']
+                    u.email_message_optin = data['email_message_optin']
                     u.mobile_reminder_optin = data['mobile_reminder_optin']
                     u.mobile_marketing_optin = data['mobile_marketing_optin']
                     u.email_newsletter_optin = data['email_newsletter_optin']
@@ -416,7 +452,7 @@ def edituser(request, username, chapter=None):
                     'bio': u.bio}, chapter=chapter)
                 formpart4 = FormPartFour({
                     'email_reminder_optin': u.email_reminder_optin,
-                    'email_chapter_optin': u.email_chapter_optin,
+                    'email_message_optin': u.email_message_optin,
                     'mobile_reminder_optin': u.mobile_reminder_optin,
                     'mobile_marketing_optin': u.mobile_marketing_optin,
                     'email_newsletter_optin': u.email_newsletter_optin,
@@ -639,6 +675,31 @@ def email_message(email_subject, email_body, chapter):
             message.status = 0
             message.save()
 
+#Sends and email to a specific recipient
+def send_email(email_subject, email_body, to_address):
+    #Set up message fields
+    message = EmailMessage()
+    message.subject = email_subject
+    message.body = email_body
+    message.from_name = "myRobogals"
+    message.from_address = "my@robogals.org"
+    message.reply_address = "my@robogals.org"
+    message.sender = User.objects.get(username='edit')
+    message.html = True
+    message.email_type = 0
+
+    #set message to WAIT
+    message.status = -1
+    message.save()
+
+    #Set up recipient fields
+    recipient = EmailRecipient()
+    recipient.message = message
+    recipient.to_address = to_address
+
+    #Set message to PENDING, save and send
+    message.status = 0
+    message.save()
 
 def notify_chapter(chapter, u):
     message_subject = u.get_full_name() + ' (' + u.username + ') has submitted a WWCC Number for checking'

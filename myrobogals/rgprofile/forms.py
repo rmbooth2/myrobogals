@@ -14,7 +14,7 @@ from django.utils.translation import ugettext_lazy as _
 from myrobogals.rgchapter.models import DisplayColumn, ShirtSize
 from myrobogals.rgmain.models import University, MobileRegex
 from myrobogals.rgmain.utils import SelectDateWidget, email_re
-from myrobogals.rgprofile.models import User
+from myrobogals.rgprofile.models import User, ChapterInvite
 from myrobogals.settings import GENDERS
 
 
@@ -210,7 +210,7 @@ class ShirtChoiceField(forms.ModelChoiceField):
 
 # Personal information
 class FormPartOne(forms.Form):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, no_email=False, *args, **kwargs):
         chapter = kwargs['chapter']
         del kwargs['chapter']
         user_id = kwargs['user_id']
@@ -493,3 +493,14 @@ class WelcomeEmailFormTwo(forms.Form):
     subject = forms.CharField(max_length=256)
     body = forms.CharField(widget=forms.Textarea)
     html = forms.BooleanField(required=False)
+
+#Form for collecting information to invite a user
+class InviteForm(forms.Form):
+    def __init__(self, *args, **kwargs):
+
+        super(InviteForm, self).__init__(*args, **kwargs)
+
+    email = forms.EmailField(label=_('Email'), max_length=64)
+    #Flags for staff/superuser permissions
+    staff_access = forms.BooleanField(initial=False, label=('Staff access'), required=False)
+    superuser_access = forms.BooleanField(initial=False, label=('Superuser access'), required=False)

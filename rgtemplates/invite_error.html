@@ -1,10 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>$Title$</title>
-</head>
-<body>
-$END$
-</body>
-</html>
+{% extends "base.html" %}
+{% load i18n %}
+{% load hide_email %}
+{% load get_user_attr %}
+{% block title %}{% blocktrans with chapter.name as chapter %}Invite Error{% endblocktrans %}{% endblock %}
+
+{% block pagetitle %}{% blocktrans with chapter.name as chapter %}Invite Error{% endblocktrans %}{% endblock %}
+
+{% block content %}
+    <p>An error occured while processing your invite. Please try again later.</p>
+{% endblock %}
+{% block noboxcontent %}
+{% endblock %}

@@ -2,6 +2,7 @@
 {% load i18n %}
 {% load hide_email %}
 {% load get_user_attr %}
+
 {% block title %}{% blocktrans with chapter.name as chapter %}Invite member: {{chapter}}{% endblocktrans %}{% endblock %}
 
 {% block pagetitle %}{% blocktrans with chapter.name as chapter %}Invite member: {{chapter}}{% endblocktrans %}{% endblock %}
@@ -9,82 +10,155 @@
 {% block content %}
     {# Use invite user form #}
     <form action="/chapters/{{chapter.myrobogals_url}}/edit/users/invite/" method="POST"> {% csrf_token %}
-    <div class="round5">
-        <div class="moduletable">
-            <div class="module-surround">
-                <div class="module-inner" id="user-info-div">
-                <h3 class="module-title" id="user-info-title">
-                {% trans "User information" %}</h3>
-                    <table id="user-info-table">
-                        {# email input box #}
-                          {% if inviteform.email.errors %}
-                              <tr>
-                                <td colspan="2"><div class="error">{% for error in inviteform.email.errors %}{{error}}{% endfor %}</div></td>
-                              </tr>
-                          {% endif %}
-                          <tr>
-                            <td width="150">{{ inviteform.email.label_tag }}</td>
-                            <td>
-                              {{ inviteform.email }}
-                              {% if inviteform.email.help_text %}
-                                <br />
-                                <p class="helpText"> {{ inviteform.email.help_text }} </p>
-                              {% endif %}
-                            </td>
-                          </tr>
 
-                    {# Staff access fiels, only shown if field is true #}
-                        {% if staff_field %}
-                          {% if inviteform.staff_access.errors %}
-                              <tr>
-                                <td colspan="2"><div class="error">{% for error in inviteform.staff_access.errors %}{{error}}{% endfor %}</div></td>
-                              </tr>
-                          {% endif %}
-                          <tr>
-                            <td width="150">{{ inviteform.staff_access.label_tag }}</td>
-                            <td>
-                              {{ inviteform.staff_access }}
-                              {% if inviteform.staff_access.help_text %}
-                                <br />
-                                <p class="helpText"> {{ inviteform.staff_access.help_text }} </p>
-                              {% endif %}
-                            </td>
-                          </tr>
-                        {% endif %}
+        {% for error in err %}
+            {% if error != "" %}
+            <td colspan="2">
+               <div class="error">{{ error }}</div>
+            </td>
+            {% endif %}
+        {% endfor %}
 
-                        {# superuser access checkkbox, only shown if superuser_field is true #}
-                        {% if superuser_field %}
-                          {% if inviteform.superuser_access.errors %}
-                              <tr>
-                                <td colspan="2"><div class="error">{% for error in inviteform.superuser_access.errors %}{{error}}{% endfor %}</div></td>
-                              </tr>
-                          {% endif %}
-                          <tr>
-                            <td width="150">{{ inviteform.superuser_access.label_tag }}</td>
-                            <td>
-                              {{ inviteform.superuser_access }}
-                              {% if inviteform.superuser_access.help_text %}
-                                <br />
-                                <p class="helpText"> {{ inviteform.superuser_access.help_text }} </p>
-                              {% endif %}
-                            </td>
-                          </tr>
-                        {% endif %}
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
+        <table>
+            {# Email field#}
+            {% if inviteform.email.errors %}
+                <tr>
+                    <td colspan="2">
+                        <div class="error">{% for error in inviteform.email.errors %}{{ error }}{% endfor %}</div>
+                    </td>
+                </tr>
+                <tr>
+            {% endif %}
+                <td width="200">
+                    {{ inviteform.email.label_tag }}{% if inviteform.email.field.required %}
+                        <span style="color: #ff0000">*</span>{% endif %}
+                </td>
+                <td>
+                    {{ inviteform.email }}
+                    {% if inviteform.email.help_text %}
+                    <br />
+                    <p class="helpText"> {{ inviteform.email.help_text }} </p>
+                    {% endif %}
+                </td>
+            </tr>
+            {# staff field #}
+            {% if inviteform.staff_access.errors %}
+                <tr>
+                    <td colspan="2">
+                        <div class="error">{% for error in inviteform.staff_access.errors %}{{ error }}{% endfor %}</div>
+                    </td>
+                </tr>
+                <tr>
+            {% endif %}
+                <td width="200">
+                    {{ inviteform.staff_access.label_tag }}{% if inviteform.staff_access.field.required %}
+                        <span style="color: #ff0000">*</span>{% endif %}
+                </td>
+                <td>
+                    {{ inviteform.staff_access }}
+                </td>
+            </tr>
+            {# superuser access checkbox #}
+            {% if inviteform.superuser_access.errors %}
+                <tr>
+                    <td colspan="2">
+                        <div class="error">{% for error in inviteform.superuser_access.errors %}{{ error }}{% endfor %}</div>
+                    </td>
+                </tr>
+                <tr>
+            {% endif %}
+                <td width="200">
+                    {{ inviteform.superuser_access.label_tag }}{% if inviteform.superuser_access.field.required %}
+                        <span style="color: #ff0000">*</span>{% endif %}
+                </td>
+                <td>
+                    {{ inviteform.superuser_access }}
+                </td>
+            </tr>
 
-    {% if return %}
-        <input type="hidden" name="return" value="{{return}}" />
-    {% endif %}
+        </table>
+        <br>
 
-
-
-    {# Submit button #}
-    <input type="submit" value="Submit" />
+        <input type="submit" value="Send Invite"/>
     </form>
+
+
+{#    <div class="round5">#}
+{#        <div class="moduletable">#}
+{#            <div class="module-surround">#}
+{#                <div class="module-inner" id="user-info-div">#}
+{#                <h3 class="module-title" id="user-info-title">#}
+{#                {% trans "User information" %}</h3>#}
+{#                    <table id="user-info-table">#}
+{#                         email input box #}
+{#                          {% if inviteform.email.errors %}#}
+{#                              <tr>#}
+{#                                <td colspan="2"><div class="error">{% for error in inviteform.email.errors %}{{error}}{% endfor %}</div></td>#}
+{#                              </tr>#}
+{#                          {% endif %}#}
+{#                          <tr>#}
+{#                            <td width="150">{{ inviteform.email.label_tag }}</td>#}
+{#                            <td>#}
+{#                              {{ inviteform.email }}#}
+{#                              {% if inviteform.email.help_text %}#}
+{#                                <br />#}
+{#                                <p class="helpText"> {{ inviteform.email.help_text }} </p>#}
+{#                              {% endif %}#}
+{#                            </td>#}
+{#                          </tr>#}
+{##}
+{#                     Staff access fiels, only shown if field is true #}
+{#                        {% if staff_field %}#}
+{#                          {% if inviteform.staff_access.errors %}#}
+{#                              <tr>#}
+{#                                <td colspan="2"><div class="error">{% for error in inviteform.staff_access.errors %}{{error}}{% endfor %}</div></td>#}
+{#                              </tr>#}
+{#                          {% endif %}#}
+{#                          <tr>#}
+{#                            <td width="150">{{ inviteform.staff_access.label_tag }}</td>#}
+{#                            <td>#}
+{#                              {{ inviteform.staff_access }}#}
+{#                              {% if inviteform.staff_access.help_text %}#}
+{#                                <br />#}
+{#                                <p class="helpText"> {{ inviteform.staff_access.help_text }} </p>#}
+{#                              {% endif %}#}
+{#                            </td>#}
+{#                          </tr>#}
+{#                        {% endif %}#}
+{##}
+{#                         superuser access checkkbox, only shown if superuser_field is true #}
+{#                        {% if superuser_field %}#}
+{#                          {% if inviteform.superuser_access.errors %}#}
+{#                              <tr>#}
+{#                                <td colspan="2"><div class="error">{% for error in inviteform.superuser_access.errors %}{{error}}{% endfor %}</div></td>#}
+{#                              </tr>#}
+{#                          {% endif %}#}
+{#                          <tr>#}
+{#                            <td width="150">{{ inviteform.superuser_access.label_tag }}</td>#}
+{#                            <td>#}
+{#                              {{ inviteform.superuser_access }}#}
+{#                              {% if inviteform.superuser_access.help_text %}#}
+{#                                <br />#}
+{#                                <p class="helpText"> {{ inviteform.superuser_access.help_text }} </p>#}
+{#                              {% endif %}#}
+{#                            </td>#}
+{#                          </tr>#}
+{#                        {% endif %}#}
+{#                    </table>#}
+{#                </div>#}
+{#            </div>#}
+{#        </div>#}
+{#    </div>#}
+{##}
+{#    {% if return %}#}
+{#        <input type="hidden" name="return" value="{{return}}" />#}
+{#    {% endif %}#}
+{##}
+{##}
+{##}
+{#     Submit button#}
+{#    <input type="submit" value="Submit" />#}
+{#    </form>#}
 
 {% endblock %}
 {% block noboxcontent %}

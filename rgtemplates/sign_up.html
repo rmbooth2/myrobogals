@@ -5,15 +5,19 @@
 {% block pagetitle %} Sign up myRobogals {% endblock %}
 
 {% block content %}
-    <form action="/join/{{ chapter.myrobogals_url }}/" method="POST"> {% csrf_token %}
+    {% if override_closed %}
+        <form action="/join/{{ chapter.myrobogals_url }}/token={{ token }}/" method="POST"> {% csrf_token %}
+    {% else %}
+        <form action="/join/{{ chapter.myrobogals_url }}/" method="POST"> {% csrf_token %}
+    {% endif %}
 
-        {% for error in err %}
-            {% if error != "" %}
-            <td colspan="2">
-               <div class="error">{{ error }}</div>
-            </td>
-            {% endif %}
-        {% endfor %}
+    {% for error in err %}
+        {% if error != "" %}
+        <td colspan="2">
+           <div class="error">{{ error }}</div>
+        </td>
+        {% endif %}
+    {% endfor %}
 
         <table>
             {% for field in signup_form %}
@@ -35,11 +39,116 @@
                 </tr>
             {% endfor %}
 
+{##}
+{#            {% if signup_form.username.errors %}#}
+{#                <tr>#}
+{#                    <td colspan="2">#}
+{#                        <div class="error">{% for error in signup_form.username.errors %}{{ error }}{% endfor %}</div>#}
+{#                    </td>#}
+{#                </tr>#}
+{#            {% endif %}#}
+{#            <tr>#}
+{#                <td width="200">#}
+{#                    {{ signup_form.username.label_tag }}{% if signup_form.username.field.required %}#}
+{#                        <span style="color: #ff0000">*</span>{% endif %}#}
+{#                </td>#}
+{#                <td>#}
+{#                    {{ signup_form.username }}#}
+{#                </td>#}
+{#            </tr>#}
+{##}
+{#            {% if signup_form.first_name.errors %}#}
+{#                <tr>#}
+{#                    <td colspan="2">#}
+{#                        <div class="error">{% for error in signup_form.first_name.errors %}{{ error }}{% endfor %}</div>#}
+{#                    </td>#}
+{#                </tr>#}
+{#            {% endif %}#}
+{##}
+{#            <tr>#}
+{#                <td width="200">#}
+{#                    {{ signup_form.first_name.label_tag }}{% if signup_form.first_name.field.required %}#}
+{#                        <span style="color: #ff0000">*</span>{% endif %}#}
+{#                </td>#}
+{#                <td>#}
+{#                    {{ signup_form.first_name }}#}
+{#                </td>#}
+{#            </tr>#}
+{##}
+{#            {% if signup_form.last_name.errors %}#}
+{#                <tr>#}
+{#                    <td colspan="2">#}
+{#                        <div class="error">{% for error in signup_form.last_name.errors %}{{ error }}{% endfor %}</div>#}
+{#                    </td>#}
+{#                </tr>#}
+{#            {% endif %}#}
+{#            <tr>#}
+{#                <td width="200">#}
+{#                    {{ signup_form.last_name.label_tag }}{% if signup_form.last_name.field.required %}#}
+{#                        <span style="color: #ff0000">*</span>{% endif %}#}
+{#                </td>#}
+{#                <td>#}
+{#                    {{ signup_form.last_name }}#}
+{#                </td>#}
+{#            </tr>#}
+{##}
+{#            {% if signup_form.student_number.errors %}#}
+{#                <tr>#}
+{#                    <td colspan="2">#}
+{#                        <div class="error">{% for error in signup_form.student_number.errors %}{{ error }}{% endfor %}</div>#}
+{#                    </td>#}
+{#                </tr>#}
+{#            {% endif %}#}
+{#            <tr>#}
+{#                <td width="200">#}
+{#                    {{ signup_form.student_number.label_tag }}{% if signup_form.student_number.field.required %}#}
+{#                        <span style="color: #ff0000">*</span>{% endif %}#}
+{#                </td>#}
+{#                <td>#}
+{#                    {{ signup_form.student_number }}#}
+{#                </td>#}
+{#            </tr>#}
+{##}
+{#            {% if signup_form.union_member.errors %}#}
+{#                <tr>#}
+{#                    <td colspan="2">#}
+{#                        <div class="error">{% for error in signup_form.union_member.errors %}{{ error }}{% endfor %}</div>#}
+{#                    </td>#}
+{#                </tr>#}
+{#            {% endif %}#}
+{#            <tr>#}
+{#                <td width="200">#}
+{#                    {{ signup_form.union_member.label_tag }}{% if signup_form.union_member.field.required %}#}
+{#                        <span style="color: #ff0000">*</span>{% endif %}#}
+{#                </td>#}
+{#                <td>#}
+{#                    {{ signup_form.union_member }}#}
+{#                </td>#}
+{#            </tr>#}
+{##}
+{#            {% if signup_form.tshirt.errors %}#}
+{#                <tr>#}
+{#                    <td colspan="2">#}
+{#                        <div class="error">{% for error in signup_form.tshirt.errors %}{{ error }}{% endfor %}</div>#}
+{#                    </td>#}
+{#                </tr>#}
+{#            {% endif %}#}
+{#            <tr>#}
+{#                <td width="200">#}
+{#                    {{ signup_form.tshirt.label_tag }}{% if signup_form.tshirt.field.required %}#}
+{#                        <span style="color: #ff0000">*</span>{% endif %}#}
+{#                </td>#}
+{#                <td>#}
+{#                    {{ signup_form.tshirt }}#}
+{#                </td>#}
+{#            </tr>#}
+{##}
+
             <tr>
-                <td width="200">Password<span style="color: #ff0000">*</span>
-                </td>
+                <td>Password<span style="color: #ff0000">*</span></td>
                 <td><input type="password" name="password1"></td>
             </tr>
+
             <tr>
                 <td>Confirm password<span style="color: #ff0000">*</span></td>
                 <td><input type="password" name="password2"></td>

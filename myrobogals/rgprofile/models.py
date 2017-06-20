@@ -1,11 +1,14 @@
+from datetime import date, datetime
+from urllib import quote
+
 from django.contrib.auth.models import AbstractUser
-from django.utils.encoding import smart_str
 from django.db import models, connection
+from django.utils.encoding import smart_str
+
 from myrobogals.rgchapter.models import Chapter, DisplayColumn, ShirtSize, NAME_DISPLAYS
 from myrobogals.rgmain.models import University, Timezone
 from myrobogals.settings import GENDERS
-from datetime import date, datetime
-from urllib import quote
+
 
 class MemberStatusType(models.Model):
 	PERSONTYPES = (
@@ -247,5 +250,33 @@ class UserList(models.Model):
 	def __unicode__(self):
 		return self.name
 
+class ChapterInvite(models.Model):
+    email = models.EmailField(max_length=64)
+    #Flags for staff/superuser permissions
+    staff_access = models.NullBooleanField(null=True)
+    superuser_access = models.NullBooleanField(null=True)
+    #date & time invite was sent
+    EXPIRY_DATETIME=models.DateTimeField(null=True)
+    #16-digit (roughly 53 bit) invite token
+    TOKEN=models.CharField(null=True, max_length=112)
+    CHAPTER_URL = models.CharField(max_length=80)
+
+    def __init__(self, inviteform=None, EXPIRY_DATETIME=None, TOKEN=None, CHAPTER_URL=None, *args, **kwargs):
+        super(ChapterInvite, self).__init__(*args, **kwargs)
+        #If invite is not none, and it is valid, then use the data from its fields
+        if(inviteform is not None):
+            #in case invite form is not and InviteForm type, do nothing with it
+            try:
+                    if inviteform.is_valid():
+                        invitedata = inviteform.cleaned_data
+                        self.email = invitedata['email']
+                        self.staff_access=invitedata['staff_access']
+                        self.superuser_access = invitedata['superuser_access']
+            except Exception:
+                pass
+        self.EXPIRY_DATETIME = EXPIRY_DATETIME
+        self.TOKEN = TOKEN
+        self.CHAPTER_URL = CHAPTER_URL
+
+
 # Import and register the signal handlers in signals.py
-import signals

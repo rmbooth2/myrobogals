@@ -5,6 +5,8 @@ users to and from their chapter
 
 import csv
 import operator
+import datetime
+import random
 from datetime import time, date
 from time import time
 
@@ -13,6 +15,7 @@ from django.contrib import messages
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
+from django.db.models.query import EmptyQuerySet
 from django.http import HttpResponse
 from django.http import HttpResponseRedirect, Http404
 from django.shortcuts import render_to_response, get_object_or_404
@@ -28,9 +31,10 @@ from myrobogals.rgprofile.forms import EditListForm, EditStatusForm, CSVUsersUpl
 from myrobogals.rgprofile.functions import importcsv, any_exec_attr, RgImportCsvException
 from myrobogals.rgprofile.models import MemberStatusType
 from myrobogals.rgprofile.models import Position
-from myrobogals.rgprofile.models import User, MemberStatus
+from myrobogals.rgprofile.models import User, MemberStatus, ChapterInvite
 from myrobogals.rgprofile.models import UserList
-from myrobogals.rgprofile.views.profile_user import edituser
+from myrobogals.rgprofile.forms import InviteForm
+from myrobogals.rgprofile.views.profile_user import edituser, send_email
 from myrobogals.rgteaching.models import Event
 from myrobogals.rgteaching.models import EventAttendee
 from myrobogals.settings import MEDIA_URL
@@ -128,35 +132,74 @@ def editstatus(request, chapterurl):
 			ulform = EditStatusForm(None, user=request.user)
 			return render_to_response('edit_user_status.html', {'ulform': ulform, 'chapter': c, 'memberstatustypes': memberstatustypes}, context_instance=RequestContext(request))
 
-#Form for collecting information to invite a user
-class InviteForm(forms.Form):
-    def __init__(self, *args, **kwargs):
-        super(InviteForm, self).__init__(*args, **kwargs)
-
-    email = forms.EmailField(label=_('Email'), max_length=64)
-    staff_access = forms.BooleanField(label=('Staff access'), required=False)
-    superuser_access = forms.BooleanField(label=('Superuser access'), required=False)
 
 #Page to send invite to join chapter to an email
 @login_required
 def inviteuser(request, chapterurl):
+    chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
+
     #Variables determine whether staff and superuser fields are shown
     staff_field = False
     superuser_field = False
 
-    #If web page is returning an action from submit button
+    #If web page is returning an action from submit button. Generate time and token for form. Send Email
     if request.method == 'POST':
         inviteform = InviteForm(request.POST)
+        #Check if form is valid
         if inviteform.is_valid():
+            # data = inviteform.cleaned_data
+
+            inviteform = InviteForm(request.POST)
+            #Set time to now
+            # inviteform.INVITE_DATETIME = datetime.datetime.now()
+
+            #Generate secure random number as 256-bit token for invite
+            #TODO generate secure random seed (maybe using seed(currenttime*salt1 | salt2) with two stored salts?)
+            seed = random.seed()
+            #Generate tokens until it finds an unused one. If OS does not support SystemRandom, then send them to error page
+            #Makeshif do while using while true and break
+            while True:
+                try:
+                    #todo change this back to 256 bits
+                    token = str(random.SystemRandom(seed).getrandbits(256))
+                except NotImplementedError:
+                    return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/invite/inviteerror')
+                #stop generating tokens if an entry with that token is not in the database
+                if ChapterInvite.objects.filter(TOKEN=token) is not EmptyQuerySet:
+                    break
+
+            #clean form and get cleaned data
+            inviteform.full_clean()
             data = inviteform.cleaned_data
-            return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/invite/sent/')
+
+            #set up email
+            email_subject = "Robogals Chapter Invite"
+            email_message = ("Hello,<br />You have been invited to join the " + chapter.name + " chapter!<br />"
+                                "Please go to 127.0.0.1:8000/join/" + chapterurl + "/token=" + str(token) + " to join.<br />")
+            if data['staff_access']:
+                email_message+="You have been given staff permissions.<br />"
+            if data['superuser_access']:
+                email_message+="You have been given superuser permissions.<br />"
+            email_message += "Invite expires after two days.<br />"
+
+            # send email:
+            send_email(email_subject, email_message, data['email'])
+            print("email is:\n" + email_message)
+
+            print("type of email field in form is" + str(type(data['email'])) + " and it's: " + str(data['email']))
+
+            #save invite form
+            chapterinvite = ChapterInvite(inviteform=inviteform, EXPIRY_DATETIME=datetime.datetime.now() + datetime.timedelta(2), TOKEN=token, CHAPTER_URL=chapterurl)
+            print("type of email in model is" + str(type(chapterinvite.email)) + " and it's: " + str(chapterinvite.email))
+            chapterinvite.save()
+
+            return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/invite/invitesent/')
 
     #If request is not an action from the submit button
     else:
         chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
         user = request.user
-        emlf = forms.EmailField(label=_('Email'), max_length=64)
-        inviteform=InviteForm({'email': emlf})
+        inviteform=InviteForm()
 
         #if staff or superuser, show staff field
         if user.is_staff or user.is_superuser:
@@ -176,6 +219,11 @@ def inviteuser(request, chapterurl):
 def invitesent(request, chapterurl):
     chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
     return render_to_response('invite_sent.html', {'chapter': chapter}, context_instance=RequestContext(request))
+
+#Page displaying "invite error" message
+def inviteerror(request, chapterurl):
+    chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
+    return render_to_response('invite_error.html', {'chapter': chapter}, context_instance=RequestContext(request))
 
 
 @login_required
