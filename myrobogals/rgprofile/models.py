@@ -18,13 +18,13 @@ class MemberStatusType(models.Model):
 	)
 	description = models.CharField(max_length=64)
 	chapter = models.ForeignKey(Chapter, null=True, blank=True)
-	
+
 	def idstr(self):
 		return str(self.id)
 
 	def __unicode__(self):
 		return self.description
-	
+
 	class Meta:
 		verbose_name = "member status"
 		verbose_name_plural = "member statuses"
@@ -79,7 +79,7 @@ class User(AbstractUser):
 		(5, 'Only Robogals members in my chapter can see'),
 		(0, 'Private (only committee can see)'),
 	)
-	
+
 	COURSE_TYPE_CHOICES = (
 		(0, 'No answer'),
 		(1, 'Undergraduate'),
@@ -138,7 +138,7 @@ class User(AbstractUser):
 
 	def age(self):
 		return int((date.today() - self.dob).days / 365.25)
-	
+
 	# This fixes members whose MemberStatus is broken.
 	# It returns the new value.
 	def fixmembertype(self):
@@ -192,7 +192,7 @@ class User(AbstractUser):
 			return self.timezone.tz_obj()
 		else:
 			return self.chapter.timezone.tz_obj()
-	
+
 	# Similar deal for name display
 	def get_name_display(self):
 		if self.name_display:
@@ -211,7 +211,7 @@ class User(AbstractUser):
 
 	def get_absolute_url(self):
 		return "/profile/%s/" % quote(smart_str(self.username))
-	
+
 	def get_full_name(self):
 		if self.get_name_display() == 0:
 			full_name = u'%s %s' % (self.first_name, self.last_name)
@@ -220,7 +220,7 @@ class User(AbstractUser):
 		elif self.get_name_display() == 2:
 			full_name = u'%s%s' % (self.last_name, self.first_name)
 		return full_name.strip()
-	
+
 	def has_cur_pos(self):
 		cursor = connection.cursor()
 		cursor.execute('SELECT COUNT(user_id) FROM `rgprofile_position` WHERE user_id = ' + str(self.pk) + ' AND position_date_end IS NULL')
@@ -246,37 +246,57 @@ class UserList(models.Model):
 	users = models.ManyToManyField(User)
 	display_columns = models.ManyToManyField(DisplayColumn)
 	notes = models.TextField(blank=True)
-	
+
 	def __unicode__(self):
 		return self.name
 
+# XXX: Try not to add comments in the model fields unless absolutely necessary
 class ChapterInvite(models.Model):
+    INVITE_STATES = (
+        (0, 'Pending'),
+        (1, 'Signed Up'),
+        (2, 'Expired')
+    )
+
     email = models.EmailField(max_length=64)
     #Flags for staff/superuser permissions
+    # XXX: Was there a reason that you set them as null boolean fields? I would just probably set them to false in all
+	# cases unless the user is going to be staff or superuser
     staff_access = models.NullBooleanField(null=True)
     superuser_access = models.NullBooleanField(null=True)
     #date & time invite was sent
     EXPIRY_DATETIME=models.DateTimeField(null=True)
     #16-digit (roughly 53 bit) invite token
     TOKEN=models.CharField(null=True, max_length=112)
+
+    # XXX: Instead of using chapter url, just use a foreign key to the actual chapter instead, saves on database space
+	# and makes it relational
     CHAPTER_URL = models.CharField(max_length=80)
 
-    def __init__(self, inviteform=None, EXPIRY_DATETIME=None, TOKEN=None, CHAPTER_URL=None, *args, **kwargs):
-        super(ChapterInvite, self).__init__(*args, **kwargs)
-        #If invite is not none, and it is valid, then use the data from its fields
-        if(inviteform is not None):
-            #in case invite form is not and InviteForm type, do nothing with it
-            try:
-                    if inviteform.is_valid():
-                        invitedata = inviteform.cleaned_data
-                        self.email = invitedata['email']
-                        self.staff_access=invitedata['staff_access']
-                        self.superuser_access = invitedata['superuser_access']
-            except Exception:
-                pass
-        self.EXPIRY_DATETIME = EXPIRY_DATETIME
-        self.TOKEN = TOKEN
-        self.CHAPTER_URL = CHAPTER_URL
+    # Add an extra field here that shows whether the user has signed up or not
+    state = models.IntegerField(choices=INVITE_STATES, default=0)
+    username = models.ForeignKey(User, null=True, blank=True)  # This will be the user that signs up with this feature
+
+	# XXX: I think the __init__ here is not necessary, I would do the assigning of variables to the model in the view
+	# itself, following the same method used through the code.
+    # def __init__(self, inviteform=None, EXPIRY_DATETIME=None, TOKEN=None, CHAPTER_URL=None, *args, **kwargs):
+     #    # If invite is not none, and it is valid, then use the data from its fields
+     #    if inviteform is not None:
+     #        # In case invite form is not and InviteForm type, do nothing with it
+     #        try:
+     #                # You will not need to call the form's .is_valid() method twice, if it's gotten this far, assume
+	# 				# the data is available in inviteform.cleaned_data
+     #                if inviteform.is_valid():
+     #                    invitedata = inviteform.cleaned_data
+     #                    self.email = invitedata['email']
+     #                    self.staff_access=invitedata['staff_access']
+     #                    self.superuser_access = invitedata['superuser_access']
+     #        except Exception:
+     #            pass
+     #    self.EXPIRY_DATETIME = EXPIRY_DATETIME
+     #    self.TOKEN = TOKEN
+     #    self.CHAPTER_URL = CHAPTER_URL
+     #    super(ChapterInvite, self).__init__(*args, **kwargs)
 
 
 # Import and register the signal handlers in signals.py

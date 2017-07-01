@@ -40,6 +40,9 @@ def joinchapter(request, chapterurl, invite=None, override_closed=False):
                                   context_instance=RequestContext(request))
 
 
+# XXX: the 'invite' variable is a ChapterInvite object when gets finds a match. The problem was that your __init__ method
+# does something funny and jumbles the entries for some reason.. still don't know why though. But taking out the
+# __init__ method solves your problem
 def joinfrominvite(request, chapterurl, token):
     try:
         invite=ChapterInvite.objects.get(TOKEN=token)
@@ -58,12 +61,17 @@ def joinfrominvite(request, chapterurl, token):
     print("token is: " + str(invite.TOKEN))
     print("chapterurl is: " + str(invite.CHAPTER_URL))
 
-    # TODO figue out why the value of
+    # XXX: Check expiry date (with the appropriate chapter's timezone)
     # #If now is after expiry date, send to error page
     # if invite.EXPIRY_DATETIME < datetime.now():
     #     return render_to_response('invalid_invite.html', {}, context_instance=RequestContext(request))
 
-    return newuser(request, chapter=get_object_or_404(Chapter, myrobogals_url__exact=chapterurl), token=token, invite=invite, override_closed=True)
+    # XXX: Previous:
+    # return newuser(request, chapter=get_object_or_404(Chapter, myrobogals_url__exact=chapterurl), token=token, invite=invite, override_closed=True)
+    # Suggested: You can get the token value from the invite object and override_closed doesn't seem to do much
+    return newuser(request, chapter=get_object_or_404(Chapter, myrobogals_url__exact=chapterurl), invite=invite)
+    # Once you've made the changes so that invite.chapter is a foreign key, your chapter arg. in newuser can just be:
+    # return newuser(request, chapter=invite.chapter, invite=invite) # because chapter will be related to an actual chapter object
 
 
 @login_required
@@ -75,8 +83,8 @@ def redirtoself(request):
 def redirtoeditself(request):
     return HttpResponseRedirect("/profile/" + request.user.username + "/edit/")
 
-
-def newuser(request, chapter, token=None, invite=None, override_closed=False):
+# XXX: Make the appropriate changes to newuser's arguemnts to reflect changes above
+def newuser(request, chapter, invite=None):
     pwerr = ''
     usererr = ''
     carderr = ''
@@ -123,6 +131,8 @@ def newuser(request, chapter, token=None, invite=None, override_closed=False):
                         if len(request.POST['password1']) < 5:
                             pwerr = _('Your password must be at least 5 characters long')
                         else:
+                            # XXX: Don't worry about this line, otherwise, hard code an email in by overriding the
+                            # signup form class, remember to remove the double indent if you remove this check!
                             # if (invite is not None) and not invite.email == data['email']:
                             #     inverr = _('Please use the email address that your invite was sent to.')
                             # else:
@@ -134,7 +144,7 @@ def newuser(request, chapter, token=None, invite=None, override_closed=False):
                                 u.is_active = True
                                 if invite is not None:
                                     u.is_staff = invite.staff_access
-                                    u.is_superuser=invite.superuser_access
+                                    u.is_superuser = invite.superuser_access
                                 else:
                                     u.is_staff = False
                                     u.is_superuser = False
@@ -165,6 +175,13 @@ def newuser(request, chapter, token=None, invite=None, override_closed=False):
 
                                 u.save()
 
+                                # XXX: Just after saving the user model, you'd want to update your invite model with
+                                # its new attributes and save those also
+                                if invite:
+                                    invite.state = 1
+                                    invite.user = u
+                                    invite.save()
+
                                 if chapter.welcome_email_enable:
                                     welcome_email(request, chapter, u)
 
@@ -178,10 +195,12 @@ def newuser(request, chapter, token=None, invite=None, override_closed=False):
             # Compile all the errors into a list
             err = [usererr, pwerr, carderr, inverr]
 
+    # XXX: Made the appropriate changes here and to the template to reflect arg. changes, make sure to check the case
+    # where invite doesn't exist, you will need a different context dictionary without invite.TOKEN
     if coc_form_text is not None:
-        return render_to_response('sign_up.html', {'signup_form': signup_form, 'conduct_form': coc_form, 'chapter': chapter, 'err': err, 'override_closed' : override_closed, 'token' : 68929328130066836618088225556443155376650624524345230279509731477781125613946}, context_instance=RequestContext(request))
+        return render_to_response('sign_up.html', {'signup_form': signup_form, 'conduct_form': coc_form, 'chapter': chapter, 'err': err, 'token': invite.TOKEN}, context_instance=RequestContext(request))
     else:
-        return render_to_response('sign_up.html', {'signup_form': signup_form, 'chapter': chapter, 'err': err, 'override_closed' : override_closed, 'token' : 68929328130066836618088225556443155376650624524345230279509731477781125613946}, context_instance=RequestContext(request))
+        return render_to_response('sign_up.html', {'signup_form': signup_form, 'chapter': chapter, 'err': err, 'token': invite.TOKEN}, context_instance=RequestContext(request))
 
 
 def conduct_help(request):

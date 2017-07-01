@@ -5,7 +5,7 @@
 {% block pagetitle %} Sign up myRobogals {% endblock %}
 
 {% block content %}
-    {% if override_closed %}
+    {% if token %}
         <form action="/join/{{ chapter.myrobogals_url }}/token={{ token }}/" method="POST"> {% csrf_token %}
     {% else %}
         <form action="/join/{{ chapter.myrobogals_url }}/" method="POST"> {% csrf_token %}

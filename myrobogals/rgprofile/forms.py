@@ -494,13 +494,20 @@ class WelcomeEmailFormTwo(forms.Form):
     body = forms.CharField(widget=forms.Textarea)
     html = forms.BooleanField(required=False)
 
-#Form for collecting information to invite a user
-class InviteForm(forms.Form):
-    def __init__(self, *args, **kwargs):
 
-        super(InviteForm, self).__init__(*args, **kwargs)
+# Form for collecting information to invite a user
+class InviteForm(forms.Form):
+    # XXX: Don't need to call init here because if an __init__ method isn't found, it'll automatically call the
+    # parent class's __init__ method, which is precisely what you're doing here anyways
+    # def __init__(self, *args, **kwargs):
+    #
+    #     super(InviteForm, self).__init__(*args, **kwargs)
 
     email = forms.EmailField(label=_('Email'), max_length=64)
-    #Flags for staff/superuser permissions
+
+    # Flags for staff/superuser permissions
+    # XXX: For the label, add an `_` (underscore) character in the front, this will allow the label to be translated
+    # to another language if necessary. Otherwise, the brackets are not necessary in this case. See imports for more
+    # details (line 12)
     staff_access = forms.BooleanField(initial=False, label=('Staff access'), required=False)
     superuser_access = forms.BooleanField(initial=False, label=('Superuser access'), required=False)

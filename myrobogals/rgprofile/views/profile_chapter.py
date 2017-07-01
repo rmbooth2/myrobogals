@@ -14,6 +14,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.decorators import login_required
+from django.core.urlresolvers import reverse
 from django.db.models import Q
 from django.db.models.query import EmptyQuerySet
 from django.http import HttpResponse
@@ -26,7 +27,8 @@ from django.utils.translation import ugettext_lazy as _
 from myrobogals.rgchapter.models import Chapter
 from myrobogals.rgmain.models import University
 from myrobogals.rgmessages.models import EmailMessage, SMSMessage
-from myrobogals.rgprofile.forms import EditListForm, EditStatusForm, CSVUsersUploadForm, WelcomeEmailForm, DefaultsFormOne, \
+from myrobogals.rgprofile.forms import EditListForm, EditStatusForm, CSVUsersUploadForm, WelcomeEmailForm, \
+    DefaultsFormOne, \
     DefaultsFormTwo
 from myrobogals.rgprofile.functions import importcsv, any_exec_attr, RgImportCsvException
 from myrobogals.rgprofile.models import MemberStatusType
@@ -42,8 +44,8 @@ from myrobogals.settings import MEDIA_URL
 
 @login_required
 def adduser(request, chapterurl):
-	chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
-	return edituser(request, '', chapter)
+    chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
+    return edituser(request, '', chapter)
 
 
 @login_required
@@ -84,102 +86,130 @@ def adduserlist(request, chapterurl):
 
 @login_required
 def editstatus(request, chapterurl):
-	c = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
-	memberstatustypes = MemberStatusType.objects.all()
-	if request.user.is_superuser or (request.user.is_staff and (c == request.user.chapter)):
-		users = []
-		if request.method == 'POST':
-			ulform = EditStatusForm(request.POST, user=request.user)
-			if ulform.is_valid():
-				data = ulform.cleaned_data
-				status = data['status']
-				users = data['users'] #l:queryset
-				users_already = ""
-				users_changed = ""
+    c = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
+    memberstatustypes = MemberStatusType.objects.all()
+    if request.user.is_superuser or (request.user.is_staff and (c == request.user.chapter)):
+        users = []
+        if request.method == 'POST':
+            ulform = EditStatusForm(request.POST, user=request.user)
+            if ulform.is_valid():
+                data = ulform.cleaned_data
+                status = data['status']
+                users = data['users']  # l:queryset
+                users_already = ""
+                users_changed = ""
 
-				for user in users:
-					u = User.objects.get(username__exact = user.username)
-					old_status = u.memberstatus_set.get(status_date_end__isnull=True)
-					if old_status.statusType == MemberStatusType.objects.get(pk=int(status)):
-						if(users_already):
-							users_already = users_already + ", " + u.username
-						else:
-							users_already = u.username
-					else:
-						if user.membertype().description != 'Inactive':
-							old_status.status_date_end = date.today()
-							old_status.save()
-						new_status=MemberStatus()
-						new_status.user = u
-						new_status.statusType = MemberStatusType.objects.get(pk=int(status))
-						new_status.status_date_start = date.today()
-						new_status.save()
-						if(users_changed):
-							users_changed = users_changed + ", " + u.username
-						else:
-							users_changed = u.username
+                for user in users:
+                    u = User.objects.get(username__exact=user.username)
+                    old_status = u.memberstatus_set.get(status_date_end__isnull=True)
+                    if old_status.statusType == MemberStatusType.objects.get(pk=int(status)):
+                        if (users_already):
+                            users_already = users_already + ", " + u.username
+                        else:
+                            users_already = u.username
+                    else:
+                        if user.membertype().description != 'Inactive':
+                            old_status.status_date_end = date.today()
+                            old_status.save()
+                        new_status = MemberStatus()
+                        new_status.user = u
+                        new_status.statusType = MemberStatusType.objects.get(pk=int(status))
+                        new_status.status_date_start = date.today()
+                        new_status.save()
+                        if (users_changed):
+                            users_changed = users_changed + ", " + u.username
+                        else:
+                            users_changed = u.username
 
-				if(users_already):
-					messages.success(request, message=unicode(_("%(usernames)s are already marked as %(type)s") % {'usernames': users_already, 'type': MemberStatusType.objects.get(pk=int(status)).description}))
+                if (users_already):
+                    messages.success(request, message=unicode(
+                        _("%(usernames)s are already marked as %(type)s") % {'usernames': users_already,
+                                                                             'type': MemberStatusType.objects.get(
+                                                                                 pk=int(status)).description}))
 
-				if(users_changed):
-					messages.success(request, message=unicode(_("%(usernames)s has/have been marked as %(type)s") % {'usernames': users_changed, 'type': new_status.statusType.description}))
+                if (users_changed):
+                    messages.success(request, message=unicode(
+                        _("%(usernames)s has/have been marked as %(type)s") % {'usernames': users_changed,
+                                                                               'type': new_status.statusType.description}))
 
-				return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/')
-			else:
-				return render_to_response('edit_user_status.html', {'ulform': ulform, 'chapter': c, 'memberstatustypes': memberstatustypes}, context_instance=RequestContext(request))
-		else:
-			ulform = EditStatusForm(None, user=request.user)
-			return render_to_response('edit_user_status.html', {'ulform': ulform, 'chapter': c, 'memberstatustypes': memberstatustypes}, context_instance=RequestContext(request))
+                return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/')
+            else:
+                return render_to_response('edit_user_status.html',
+                                          {'ulform': ulform, 'chapter': c, 'memberstatustypes': memberstatustypes},
+                                          context_instance=RequestContext(request))
+        else:
+            ulform = EditStatusForm(None, user=request.user)
+            return render_to_response('edit_user_status.html',
+                                      {'ulform': ulform, 'chapter': c, 'memberstatustypes': memberstatustypes},
+                                      context_instance=RequestContext(request))
 
 
-#Page to send invite to join chapter to an email
+# Page to send invite to join chapter to an email
 @login_required
 def inviteuser(request, chapterurl):
     chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
 
-    #Variables determine whether staff and superuser fields are shown
+    # Variables determine whether staff and superuser fields are shown
     staff_field = False
     superuser_field = False
 
-    #If web page is returning an action from submit button. Generate time and token for form. Send Email
+    # If web page is returning an action from submit button. Generate time and token for form. Send Email
     if request.method == 'POST':
         inviteform = InviteForm(request.POST)
-        #Check if form is valid
+        # Check if form is valid
         if inviteform.is_valid():
             # data = inviteform.cleaned_data
 
-            inviteform = InviteForm(request.POST)
-            #Set time to now
+            # XXX: This doesn't need to be here since you've already called it once above
+            # inviteform = InviteForm(request.POST)
+
+            # Set time to now
             # inviteform.INVITE_DATETIME = datetime.datetime.now()
 
-            #Generate secure random number as 256-bit token for invite
-            #TODO generate secure random seed (maybe using seed(currenttime*salt1 | salt2) with two stored salts?)
+            # Generate secure random number as 256-bit token for invite
+            # TODO generate secure random seed (maybe using seed(currenttime*salt1 | salt2) with two stored salts?)
             seed = random.seed()
-            #Generate tokens until it finds an unused one. If OS does not support SystemRandom, then send them to error page
-            #Makeshif do while using while true and break
+            # Generate tokens until it finds an unused one. If OS does not support SystemRandom, then send them to error page
+            # Makeshif do while using while true and break
             while True:
                 try:
-                    #todo change this back to 256 bits
+                    # todo change this back to 256 bits
                     token = str(random.SystemRandom(seed).getrandbits(256))
                 except NotImplementedError:
-                    return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/invite/inviteerror')
-                #stop generating tokens if an entry with that token is not in the database
+                    # XXX: I wouldn't like to create another page in this case for an invite error, instead let's just
+                    # use the messages system to say that an error has occurred, for example:
+                    # Previous code:
+                    # return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/invite/inviteerror')
+                    # Suggested change:
+                    messages.error(request, 'An error occured while processing your invite. Please try again later.')
+                    return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/')
+
+                    # XXX: Alternative return statement to the one above, more django-esque and stops you from having
+                    # to hardcore the url, instead it does a name lookup of chapters_edit_users to find the url
+                    # return HttpResponseRedirect(reverse('chapters_edit_users', kwargs={'chapterurl': chapterurl}))
+
+                # stop generating tokens if an entry with that token is not in the database
                 if ChapterInvite.objects.filter(TOKEN=token) is not EmptyQuerySet:
                     break
 
-            #clean form and get cleaned data
-            inviteform.full_clean()
+            # clean form and get cleaned data
+            # XXX: When you call .is_valid() method, it called clean() on all your form fields and stores the data in
+            # the cleaned_data attribute in a dictionary format, so the full_clean() is not necessary
+            # inviteform.full_clean()
             data = inviteform.cleaned_data
 
-            #set up email
+            # set up email
+            # XXX: You would want to use the my.robogals.org domain for the email here instead of the localhost.
+            # A more elegant solution is to define our url in the settings file, and grab it from there in case we need
+            # to use it elsewhere: e.g. we call settings.SITE_URL, which will return my.robogals.org
             email_subject = "Robogals Chapter Invite"
             email_message = ("Hello,<br />You have been invited to join the " + chapter.name + " chapter!<br />"
-                                "Please go to 127.0.0.1:8000/join/" + chapterurl + "/token=" + str(token) + " to join.<br />")
+                                                                                               "Please go to 127.0.0.1:8000/join/" + chapterurl + "/token=" + str(
+                token) + " to join.<br />")
             if data['staff_access']:
-                email_message+="You have been given staff permissions.<br />"
+                email_message += "You have been given staff permissions.<br />"
             if data['superuser_access']:
-                email_message+="You have been given superuser permissions.<br />"
+                email_message += "You have been given superuser permissions.<br />"
             email_message += "Invite expires after two days.<br />"
 
             # send email:
@@ -188,42 +218,58 @@ def inviteuser(request, chapterurl):
 
             print("type of email field in form is" + str(type(data['email'])) + " and it's: " + str(data['email']))
 
-            #save invite form
-            chapterinvite = ChapterInvite(inviteform=inviteform, EXPIRY_DATETIME=datetime.datetime.now() + datetime.timedelta(2), TOKEN=token, CHAPTER_URL=chapterurl)
-            print("type of email in model is" + str(type(chapterinvite.email)) + " and it's: " + str(chapterinvite.email))
+            # save invite form
+            chapterinvite = ChapterInvite()
+            chapterinvite.email = data['email']
+            chapterinvite.staff_access = data['staff_access']
+            chapterinvite.superuser_access = data['superuser_access']
+            chapterinvite.CHAPTER_URL = chapterurl
+            chapterinvite.EXPIRY_DATETIME = datetime.datetime.now() + datetime.timedelta(2)
+            chapterinvite.TOKEN = token
             chapterinvite.save()
 
-            return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/invite/invitesent/')
+            # I think using messages and redirecting to the 'main' members page is a more elegant solution than creating
+            # another page for when an invite is sent, similar to when the invites had an error
+            # Previous Code:
+            # return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/invite/invitesent/')
+            # Suggested Solution:
+            messages.success(request, ('You have successfully sent an invitation to %s' % data['email']))
+            return HttpResponseRedirect('/chapters/' + chapterurl + '/edit/users/')
 
-    #If request is not an action from the submit button
+    # If request is not an action from the submit button
     else:
         chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
         user = request.user
-        inviteform=InviteForm()
+        inviteform = InviteForm()
 
-        #if staff or superuser, show staff field
+        # XXX: Doesn't seem like you're restricting staff access or superuser access based on these conditions on the
+        # template page but in your commented out code it does
+        # if staff or superuser, show staff field
         if user.is_staff or user.is_superuser:
             staff_field = True
-        #if user is superuser, show superuser field
+        # if user is superuser, show superuser field
         if user.is_superuser:
             superuser_field = True
 
     return render_to_response('invite_user.html',
-                                      {'chapter' : chapter,
-                                       'inviteform' : inviteform,
-                                       'staff_field' : staff_field,
-                                       'superuser_field' : superuser_field},
-                                      context_instance=RequestContext(request))
+                              {'chapter': chapter,
+                               'inviteform': inviteform,
+                               'staff_field': staff_field,
+                               'superuser_field': superuser_field},
+                              context_instance=RequestContext(request))
 
-#Page displaying "invite sent" message
-def invitesent(request, chapterurl):
-    chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
-    return render_to_response('invite_sent.html', {'chapter': chapter}, context_instance=RequestContext(request))
 
-#Page displaying "invite error" message
-def inviteerror(request, chapterurl):
-    chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
-    return render_to_response('invite_error.html', {'chapter': chapter}, context_instance=RequestContext(request))
+# XXX: Now these pages aren't needed, also need to remove from urls.py list
+# # Page displaying "invite sent" message
+# def invitesent(request, chapterurl):
+#     chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
+#     return render_to_response('invite_sent.html', {'chapter': chapter}, context_instance=RequestContext(request))
+#
+#
+# # Page displaying "invite error" message
+# def inviteerror(request, chapterurl):
+#     chapter = get_object_or_404(Chapter, myrobogals_url__exact=chapterurl)
+#     return render_to_response('invite_error.html', {'chapter': chapter}, context_instance=RequestContext(request))
 
 
 @login_required
